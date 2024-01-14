@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            display: flex;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Sans-serif';
+            background-color: #f0f0f0;
+        }
+        
+        #canvasContainer {
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        canvas {
+            border: 1px solid #ccc;
+            cursor: auto;
+        }
+        
+        #propertyEditor {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 200px;
+            padding: 10px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        #propertyEditor input {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+        
+        #propertyEditor button {
+            width: 100%;
+            padding: 8px;
+            background-color: #4caf50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        
+        #propertyEditor button:hover {
+            background-color: #45a049;
+        }
+    </style>
+    <title>Card Relationships App</title>
+</head>
+
+<body>
+    <div id="canvasContainer">
+        <canvas id="cardCanvas" width="1920" height="1080"></canvas>
+        <div id="propertyEditor">
+            <input type="text" id="name" placeholder="Edit Text">
+            <button onclick="deleteCard()">Delete</button>
+        </div>
+    </div>
+
+    <script>
+        class Card {
+            constructor(x, y, text) {
+                this.x = x;
+                this.y = y;
+                this.textLines = text.split('\n');
+                this.width = 100;
+                this.height = 20 * this.textLines.length; // Adjust height based on number of lines
+                this.isDragging = false;
+                this.relationships = [];
+                this.selected = false;
+            }
+
+            draw() {
+                ctx.fillStyle = this.selected ? '#ff0' : '#fff';
+                ctx.fillRect(this.x - viewport.x, this.y - viewport.y, this.width, this.height);
+
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(this.x - viewport.x, this.y - viewport.y, this.width, this.height);
+
+                ctx.font = '14px Sans-serif';
+                ctx.fillStyle = '#000';
+                ctx.textAlign = 'center';
+
+                // Draw each line of text separately
+                this.textLines.forEach((line, i) => {
+                    ctx.fillText(line, this.x - viewport.x + this.width / 2, this.y - viewport.y + 14 + i * 14);
+                });
+            }
+
+
+            addRelationship(card) {
+                this.relationships.push(card);
+            }
+
+            drawRelationships() {
+                this.relationships.forEach(relatedCard => {
+                    this.drawCurvedLine(relatedCard);
+                });
+            }
+
+            drawCurvedLine(targetCard) {
+
+                const startX = this.x - viewport.x + this.width / 2;
+                const startY = this.y - viewport.y + this.height;
+
+                const endX = targetCard.x - viewport.x + targetCard.width / 2;
+                const endY = targetCard.y - viewport.y;
+
+                const controlX1 = startX + (endX - startX) / 2;
+                const controlY1 = startY + 60; // Adjusted for better aesthetics
+                const controlX2 = endX - (endX - startX) / 2;
+                const controlY2 = endY - 60; // Adjusted for better aesthetics
+
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.bezierCurveTo(controlX1, controlY1, controlX2, controlY2, endX, endY);
+                ctx.stroke();
+            }
+        }
+
+        const canvas = document.getElementById('cardCanvas');
+        const ctx = canvas.getContext('2d');
+        const cards = [];
+        let from = null;
+        let to = null;
+        let viewport = {
+            x: 0,
+            y: 0
+        };
+
+        function createCards() {
+            let card1 = new Card(50, 50, 'Card \n\n1');
+            let card2 = new Card(200, 150, 'Card\n 2');
+            let card3 = new Card(350, 250, 'Card\n 3');
+            let card4 = new Card(500, 250, 'Card\n 4');
+
+            card1.addRelationship(card2);
+            card2.addRelationship(card3);
+            card2.addRelationship(card4);
+            cards.push(card1, card2, card3, card4);
+        }
+
+        function drawCards() {
+            cards.forEach(card => card.draw());
+        }
+
+        function drawRelationships() {
+            cards.forEach(card => card.drawRelationships());
+        }
+
+        function drawGrid() {
+            const gridSize = 20;
+            const offsetX = viewport.x % gridSize;
+            const offsetY = viewport.y % gridSize;
+
+            ctx.beginPath();
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                ctx.moveTo(x - offsetX, 0 - offsetY);
+                ctx.lineTo(x - offsetX, canvas.height - offsetY);
+            }
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.moveTo(0 - offsetX, y - offsetY);
+                ctx.lineTo(canvas.width - offsetX, y - offsetY);
+            }
+            ctx.strokeStyle = '#ccc';
+            ctx.stroke();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            drawRelationships();
+            drawCards();
+        }
+
+        function getMousePos(event) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top
+            };
+        }
+
+        function isInsideCard(mousePos, card) {
+            return (
+                mousePos.x >= card.x - viewport.x &&
+                mousePos.x <= card.x - viewport.x + card.width &&
+                mousePos.y >= card.y - viewport.y &&
+                mousePos.y <= card.y - viewport.y + card.height
+            );
+        }
+
+        canvas.addEventListener('mousedown', (event) => {
+            console.log(event.button);
+            const mousePos = getMousePos(event);
+            let isOnCard = false;
+            cards.forEach(card => {
+                if (isInsideCard(mousePos, card)) {
+                    if (event.button == 0) card.isDragging = true;
+                    isOnCard = true;
+                    if (event.button == 2) from = card;
+                    else from = null;
+                }
+            });
+
+            // If not on a card, start dragging the viewport
+            if (!isOnCard) {
+                canvas.style.cursor = 'grabbing';
+                canvas.addEventListener('mousemove', handleCanvasDrag);
+                from = null;
+            }
+        });
+
+        function handleCanvasDrag(event) {
+            viewport.x -= event.movementX;
+            viewport.y -= event.movementY;
+            draw();
+        }
+
+        canvas.addEventListener('mouseup', (event) => {
+            console.log(event.button)
+            if (event.button == 2) {
+                let pos = getMousePos(event);
+                cards.forEach(card => {
+                    if (isInsideCard(pos, card)) {
+                        to = card;
+                        from.addRelationship(to);
+                        drawRelationships();
+                        from = null;
+                        to = null;
+                    }
+                });
+            }
+
+            cards.forEach(card => {
+                card.isDragging = false;
+            });
+
+            canvas.style.cursor = 'auto';
+            canvas.removeEventListener('mousemove', handleCanvasDrag);
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+            const mousePos = getMousePos(event);
+            cards.forEach(card => {
+                if (card.isDragging) {
+                    card.x = mousePos.x - card.width / 2 + viewport.x;
+                    card.y = mousePos.y - card.height / 2 + viewport.y;
+                    draw();
+                }
+            });
+        });
+
+        canvas.addEventListener('dblclick', (event) => {
+            event.preventDefault();
+            const mousePos = getMousePos(event);
+            cards.forEach(card => {
+                if (isInsideCard(mousePos, card)) {
+                    card.selected = !card.selected;
+                    draw();
+                } else {
+                    card.selected = false;
+                    draw();
+                }
+            });
+        });
+        canvas.addEventListener('click', (event) => {
+            const mousePos = getMousePos(event);
+            cards.forEach(card => {
+
+                card.selected = false;
+                draw();
+
+            });
+        });
+        window.addEventListener('keydown', (event) => {
+            const speed = 10;
+            switch (event.key) {
+                case 'ArrowUp':
+                    viewport.y -= speed;
+                    break;
+                case 'ArrowDown':
+                    viewport.y += speed;
+                    break;
+                case 'ArrowLeft':
+                    viewport.x -= speed;
+                    break;
+                case 'ArrowRight':
+                    viewport.x += speed;
+                    break;
+            }
+            draw();
+        });
+        canvas.addEventListener('contextmenu', (event) => {
+            event.preventDefault(); // Prevent the default context menu from appearing
+        });
+        createCards();
+        draw();
+    </script>
+</body>
+
+</html>
